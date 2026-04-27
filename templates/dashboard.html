@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EV Charging Demand Control Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+  <style>
+    :root {
+      --bg: #07111f;
+      --bg-soft: #0d1b2a;
+      --panel: rgba(14, 24, 38, 0.88);
+      --panel-strong: #122238;
+      --line: rgba(255, 255, 255, 0.09);
+      --text: #ecf4ff;
+      --muted: #9db0c9;
+      --accent: #5dd6c1;
+      --accent-2: #7c8cff;
+      --warning: #f7c948;
+      --danger: #ff6b6b;
+      --good: #44d19e;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: 'Inter', sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(93, 214, 193, 0.18), transparent 32%),
+        radial-gradient(circle at top right, rgba(124, 140, 255, 0.18), transparent 28%),
+        linear-gradient(180deg, #07111f 0%, #091521 48%, #050b14 100%);
+      background-attachment: fixed;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.18;
+      background-image: linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px);
+      background-size: 32px 32px;
+      mask-image: linear-gradient(180deg, rgba(0,0,0,0.9), rgba(0,0,0,0.2));
+    }
+
+    .shell {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 28px 18px 40px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.3fr 0.9fr;
+      gap: 20px;
+      align-items: stretch;
+      margin-bottom: 20px;
+    }
+
+    .hero-card, .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+      border-radius: 24px;
+    }
+
+    .hero-card {
+      padding: 28px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-card::after {
+      content: '';
+      position: absolute;
+      width: 320px;
+      height: 320px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(93,214,193,0.12), transparent 68%);
+      right: -120px;
+      top: -120px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(93, 214, 193, 0.12);
+      color: #b9fff0;
+      border: 1px solid rgba(93, 214, 193, 0.25);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    .hero h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: clamp(34px, 4vw, 58px);
+      line-height: 0.96;
+      margin: 0 0 14px;
+      max-width: 12ch;
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 72ch;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--line);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .pill strong { color: white; }
+
+    .hero-side {
+      display: grid;
+      gap: 20px;
+    }
+
+    .mini-card {
+      padding: 18px 20px;
+      border-radius: 24px;
+      background: linear-gradient(135deg, rgba(18,34,56,0.96), rgba(10,20,34,0.94));
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+
+    .mini-title {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+    }
+
+    .mini-value {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 30px;
+      margin-bottom: 4px;
+    }
+
+    .mini-sub {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .stat-card {
+      padding: 16px;
+      border-radius: 20px;
+      background: rgba(18, 34, 56, 0.82);
+      border: 1px solid var(--line);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25);
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 10px;
+    }
+
+    .stat-value {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 26px;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .stat-note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .grid-layout {
+      display: grid;
+      grid-template-columns: 1.5fr 0.95fr;
+      gap: 18px;
+      align-items: start;
+      margin-bottom: 18px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 18px;
+    }
+
+    .panel {
+      padding: 18px;
+    }
+
+    .panel h2 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 18px;
+      margin: 0 0 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .panel h2 span {
+      color: var(--muted);
+      font-size: 12px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 500;
+    }
+
+    .chart {
+      width: 100%;
+      min-height: 360px;
+    }
+
+    .chart.short {
+      min-height: 320px;
+    }
+
+    .chart.tall {
+      min-height: 430px;
+    }
+
+    .subgrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .alert-list, .insight-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .alert-item, .insight-item {
+      padding: 14px 15px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--line);
+    }
+
+    .alert-item.critical { border-color: rgba(255,107,107,0.35); background: rgba(255,107,107,0.08); }
+    .alert-item.warning { border-color: rgba(247,201,72,0.28); background: rgba(247,201,72,0.08); }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border: 1px solid transparent;
+    }
+
+    .badge.green { background: rgba(68, 209, 158, 0.12); color: #84f1c8; border-color: rgba(68, 209, 158, 0.25); }
+    .badge.yellow { background: rgba(247, 201, 72, 0.12); color: #ffd66f; border-color: rgba(247, 201, 72, 0.25); }
+    .badge.red { background: rgba(255, 107, 107, 0.12); color: #ffabab; border-color: rgba(255, 107, 107, 0.25); }
+    .badge.gray { background: rgba(157, 176, 201, 0.1); color: #d4def0; border-color: rgba(157, 176, 201, 0.18); }
+    .badge.orange { background: rgba(255, 165, 66, 0.12); color: #ffcd9a; border-color: rgba(255, 165, 66, 0.22); }
+
+    .section {
+      margin-bottom: 18px;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.03);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 1100px;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      background: #0d1b2a;
+      color: #dbe7f8;
+      text-align: left;
+      padding: 14px 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 11px;
+      border-bottom: 1px solid var(--line);
+      z-index: 1;
+    }
+
+    tbody td {
+      padding: 13px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      color: #edf4ff;
+    }
+
+    tbody tr:hover {
+      background: rgba(255,255,255,0.035);
+    }
+
+    .table-tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .table-tag.green { background: rgba(68, 209, 158, 0.12); color: #84f1c8; }
+    .table-tag.yellow { background: rgba(247, 201, 72, 0.12); color: #ffd66f; }
+    .table-tag.red { background: rgba(255, 107, 107, 0.12); color: #ffabab; }
+
+    .muted { color: var(--muted); }
+    .error {
+      background: rgba(255, 107, 107, 0.1);
+      border: 1px solid rgba(255, 107, 107, 0.25);
+      color: #ffd7d7;
+      padding: 14px 16px;
+      border-radius: 16px;
+    }
+
+    .loading {
+      display: grid;
+      place-items: center;
+      min-height: 260px;
+      color: var(--muted);
+      gap: 12px;
+    }
+
+    .spinner {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: 4px solid rgba(255,255,255,0.12);
+      border-top-color: var(--accent);
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .footer-note {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 1280px) {
+      .summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .hero, .grid-layout, .subgrid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 760px) {
+      .shell { padding: 16px 12px 28px; }
+      .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .hero-card, .panel, .mini-card { border-radius: 18px; }
+      .hero h1 { max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <div class="hero-card">
+        <div class="eyebrow">EV Charging Demand Control Center</div>
+        <h1>See demand, risk, and pricing in one operational view.</h1>
+        <p>
+          This dashboard turns hourly station usage, weather, event signals, and capacity into a live control panel for operators.
+          It highlights overload risk, points out where demand is building, and suggests actions before stations get congested.
+        </p>
+        <div class="hero-meta" id="hero-meta">
+          <div class="pill">Model: <strong>XGBoost</strong></div>
+          <div class="pill">Forecast: <strong id="hero-hours">24h</strong></div>
+          <div class="pill">Last updated: <strong id="hero-updated">--</strong></div>
+        </div>
+      </div>
+      <div class="hero-side">
+        <div class="mini-card">
+          <div class="mini-title">Operational load</div>
+          <div class="mini-value" id="hero-load">--</div>
+          <div class="mini-sub">Average utilization across all active stations in the latest snapshot.</div>
+        </div>
+        <div class="mini-card">
+          <div class="mini-title">Peak forecast window</div>
+          <div class="mini-value" id="hero-peak">--</div>
+          <div class="mini-sub">Highest expected fleet demand within the forecast horizon.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="summary-grid">
+      <div class="stat-card">
+        <div class="stat-label">Stations</div>
+        <div class="stat-value" id="stat-stations">--</div>
+        <div class="stat-note">Active station count in the latest data snapshot.</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Current Demand</div>
+        <div class="stat-value" id="stat-current-demand">--</div>
+        <div class="stat-note">Total observed demand across all stations right now.</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avg Utilization</div>
+        <div class="stat-value" id="stat-utilization">--</div>
+        <div class="stat-note">Fleet-wide utilization versus available capacity.</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Critical Stations</div>
+        <div class="stat-value" id="stat-critical">--</div>
+        <div class="stat-note">Predicted to exceed 90% utilization.</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Warning Stations</div>
+        <div class="stat-value" id="stat-warning">--</div>
+        <div class="stat-note">Likely to cross the warning threshold.</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Peak Hour</div>
+        <div class="stat-value" id="stat-peak-hour">--</div>
+        <div class="stat-note">Hour with the highest projected fleet demand.</div>
+      </div>
+    </section>
+
+    <section class="grid-layout">
+      <div class="stack">
+        <div class="panel">
+          <h2>Fleet Forecast <span>Demand versus total capacity</span></h2>
+          <div id="forecast-chart" class="chart tall loading"><div class="spinner"></div><div>Loading forecast...</div></div>
+        </div>
+        <div class="subgrid">
+          <div class="panel">
+            <h2>Station Load Ranking <span>Top utilization hot spots</span></h2>
+            <div id="utilization-chart" class="chart short loading"><div class="spinner"></div><div>Loading ranking...</div></div>
+          </div>
+          <div class="panel">
+            <h2>Network Mix <span>Location / charger split</span></h2>
+            <div id="mix-chart" class="chart short loading"><div class="spinner"></div><div>Loading mix...</div></div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Forecast Heatmap <span>Demand pattern by station and hour</span></h2>
+          <div id="heatmap-chart" class="chart tall loading"><div class="spinner"></div><div>Loading heatmap...</div></div>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="panel">
+          <h2>Alert Feed <span>Operational warnings</span></h2>
+          <div id="alerts-panel" class="alert-list loading"><div class="spinner"></div><div>Loading alerts...</div></div>
+        </div>
+        <div class="panel">
+          <h2>Operational Insights <span>What to watch next</span></h2>
+          <div id="insights-panel" class="insight-list loading"><div class="spinner"></div><div>Loading insights...</div></div>
+        </div>
+        <div class="panel">
+          <h2>Context Snapshot <span>Weather and event conditions</span></h2>
+          <div id="context-panel" class="insight-list loading"><div class="spinner"></div><div>Loading context...</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section panel">
+      <h2>Station Detail Table <span>Capacity, trend, and pricing recommendations</span></h2>
+      <div id="stations-table" class="table-wrap loading"><div class="spinner"></div><div>Loading stations...</div></div>
+    </section>
+
+    <section class="section panel">
+      <h2>Dynamic Pricing Recommendations <span>Policy signal for the next operating window</span></h2>
+      <div id="pricing-table" class="table-wrap loading"><div class="spinner"></div><div>Loading pricing...</div></div>
+    </section>
+
+    <div class="footer-note">
+      Data refreshes every 30 seconds. Forecasts are generated from the latest station snapshot and current feature patterns in the training dataset.
+    </div>
+  </div>
+
+  <script>
+    const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+    const numberFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
+
+    async function fetchDashboard(hours = 24) {
+      const response = await fetch(`/api/dashboard?hours=${hours}`);
+      if (!response.ok) {
+        throw new Error(`Dashboard request failed with HTTP ${response.status}`);
+      }
+      return response.json();
+    }
+
+    function formatPercent(value) {
+      return `${numberFormatter.format(value * 100)}%`;
+    }
+
+    function badgeClass(level) {
+      if (level === 'critical') return 'red';
+      if (level === 'warning') return 'yellow';
+      if (level === 'normal') return 'green';
+      return 'gray';
+    }
+
+    function renderSummary(data) {
+      const summary = data.summary || {};
+      document.getElementById('stat-stations').textContent = summary.total_stations ?? '--';
+      document.getElementById('stat-current-demand').textContent = summary.current_total_demand ? `${numberFormatter.format(summary.current_total_demand)} kWh` : '--';
+      document.getElementById('stat-utilization').textContent = summary.current_average_utilization !== undefined ? formatPercent(summary.current_average_utilization) : '--';
+      document.getElementById('stat-critical').textContent = summary.critical_count ?? '--';
+      document.getElementById('stat-warning').textContent = summary.warning_count ?? '--';
+      document.getElementById('stat-peak-hour').textContent = summary.peak_forecast_hour || '--';
+      document.getElementById('hero-hours').textContent = `${summary.forecast_horizon ?? 24}h`;
+      document.getElementById('hero-load').textContent = summary.current_average_utilization !== undefined ? formatPercent(summary.current_average_utilization) : '--';
+      document.getElementById('hero-peak').textContent = summary.peak_forecast_hour ? `${summary.peak_forecast_hour} · ${numberFormatter.format(summary.peak_forecast_demand || 0)} kWh` : '--';
+      document.getElementById('hero-updated').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function renderForecastChart(data) {
+      const forecast = data.forecast || {};
+      const hours = forecast.hourly_totals || [];
+      const x = hours.map(item => item.label);
+      const demand = hours.map(item => item.total_demand);
+      const capacity = hours.length ? new Array(hours.length).fill(data.summary.total_stations ? data.stations.reduce((sum, station) => sum + station.capacity, 0) : 0) : [];
+      const util = hours.map(item => item.fleet_utilization * 100);
+
+      const traces = [
+        {
+          x,
+          y: demand,
+          name: 'Forecast demand',
+          type: 'scatter',
+          mode: 'lines+markers',
+          line: { color: '#5dd6c1', width: 3 },
+          marker: { size: 6 }
+        },
+        {
+          x,
+          y: capacity,
+          name: 'Total capacity',
+          type: 'scatter',
+          mode: 'lines',
+          line: { color: '#7c8cff', width: 2, dash: 'dot' }
+        }
+      ];
+
+      Plotly.newPlot('forecast-chart', traces, {
+        margin: { t: 20, r: 18, b: 50, l: 58 },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(255,255,255,0.02)',
+        font: { color: '#ecf4ff', family: 'Inter, sans-serif' },
+        xaxis: { title: 'Forecast hour', gridcolor: 'rgba(255,255,255,0.08)' },
+        yaxis: { title: 'Demand (kWh)', gridcolor: 'rgba(255,255,255,0.08)' },
+        legend: { orientation: 'h', y: -0.22 },
+        hovermode: 'x unified',
+        shapes: util.length ? util.map((value, index) => ({
+          type: 'line',
+          x0: x[index],
+          x1: x[index],
+          y0: 0,
+          y1: demand[index],
+          line: { color: 'rgba(255,255,255,0.03)', width: 1 }
+        })) : []
+      }, { responsive: true, displayModeBar: false });
+    }
+
+    function renderUtilizationChart(data) {
+      const stations = [...(data.stations || [])]
+        .sort((a, b) => (b.peak_utilization || 0) - (a.peak_utilization || 0))
+        .slice(0, 10);
+
+      Plotly.newPlot('utilization-chart', [{
+        x: stations.map(item => item.peak_utilization * 100),
+        y: stations.map(item => `Station ${item.station_id}`),
+        type: 'bar',
+        orientation: 'h',
+        marker: {
+          color: stations.map(item => item.risk_level === 'critical' ? '#ff6b6b' : item.risk_level === 'warning' ? '#f7c948' : '#5dd6c1')
+        },
+        hovertemplate: '%{y}<br>Peak utilization: %{x:.1f}%<extra></extra>'
+      }], {
+        margin: { t: 10, r: 18, b: 35, l: 96 },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(255,255,255,0.02)',
+        font: { color: '#ecf4ff', family: 'Inter, sans-serif' },
+        xaxis: { title: 'Peak utilization (%)', gridcolor: 'rgba(255,255,255,0.08)' },
+        yaxis: { automargin: true }
+      }, { responsive: true, displayModeBar: false });
+    }
+
+    function renderMixChart(data) {
+      const locationMix = (data.insights && data.insights.location_mix) || [];
+      const labels = locationMix.map(item => item.location_type || item.charger_type || 'Unknown');
+      const values = locationMix.map(item => item.count || 0);
+      const colors = ['#5dd6c1', '#7c8cff', '#f7c948', '#ff6b6b'];
+
+      Plotly.newPlot('mix-chart', [{
+        labels,
+        values,
+        type: 'pie',
+        hole: 0.62,
+        sort: false,
+        direction: 'clockwise',
+        marker: { colors },
+        textinfo: 'label+percent'
+      }], {
+        margin: { t: 10, r: 10, b: 10, l: 10 },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        font: { color: '#ecf4ff', family: 'Inter, sans-serif' },
+        showlegend: false
+      }, { responsive: true, displayModeBar: false });
+    }
+
+    function renderHeatmap(data) {
+      const forecast = data.forecast || {};
+      Plotly.newPlot('heatmap-chart', [{
+        z: forecast.matrix || [],
+        x: forecast.hour_labels || [],
+        y: forecast.station_labels || [],
+        type: 'heatmap',
+        colorscale: [
+          [0, '#07111f'],
+          [0.25, '#243b6b'],
+          [0.5, '#4b6cb7'],
+          [0.75, '#5dd6c1'],
+          [1, '#f7c948']
+        ],
+        hovertemplate: '%{y}<br>%{x}<br>%{z:.1f} kWh<extra></extra>'
+      }], {
+        margin: { t: 10, r: 10, b: 30, l: 82 },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(255,255,255,0.02)',
+        font: { color: '#ecf4ff', family: 'Inter, sans-serif' },
+        xaxis: { title: 'Forecast hour', tickangle: -25 },
+        yaxis: { title: 'Station' }
+      }, { responsive: true, displayModeBar: false });
+    }
+
+    function renderAlerts(data) {
+      const container = document.getElementById('alerts-panel');
+      const alerts = (data.alerts && data.alerts.summary && data.alerts.summary.alerts) || [];
+      const recommendations = (data.alerts && data.alerts.summary && data.alerts.summary.unique_recommendations) || [];
+      const evaluations = (data.alerts && data.alerts.evaluations) || [];
+
+      if (!alerts.length && !evaluations.length) {
+        container.innerHTML = '<div class="alert-item"><span class="badge green">Normal</span><div class="muted" style="margin-top:10px;">No active alerts. The fleet is currently operating within capacity limits.</div></div>';
+        return;
+      }
+
+      let html = '';
+      alerts.slice(0, 5).forEach(alert => {
+        const level = alert.includes('CRITICAL') ? 'critical' : 'warning';
+        html += `<div class="alert-item ${level}"><span class="badge ${badgeClass(level)}">${level}</span><div style="margin-top:10px;line-height:1.6;">${alert}</div></div>`;
+      });
+
+      if (recommendations.length) {
+        html += '<div class="alert-item"><span class="badge gray">Actions</span><div style="margin-top:10px;line-height:1.75;">';
+        recommendations.slice(0, 4).forEach(rec => {
+          html += `<div>• ${rec}</div>`;
+        });
+        html += '</div></div>';
+      }
+
+      if (evaluations.length) {
+        const riskyStations = evaluations.slice(0, 3).map(item => `Station ${item.station_id} (${numberFormatter.format(item.utilization_percent)}%)`).join(' · ');
+        html += `<div class="alert-item"><span class="badge orange">Hot spots</span><div style="margin-top:10px;line-height:1.6;">${riskyStations}</div></div>`;
+      }
+
+      container.classList.remove('loading');
+      container.innerHTML = html;
+    }
+
+    function renderInsights(data) {
+      const container = document.getElementById('insights-panel');
+      const topRisk = (data.insights && data.insights.top_risk_stations) || [];
+      const topDemand = (data.insights && data.insights.top_demand_stations) || [];
+
+      let html = '';
+      if (topRisk.length) {
+        html += '<div class="insight-item"><div class="badge red">Risk leaders</div><div style="margin-top:10px;line-height:1.65;">';
+        topRisk.slice(0, 5).forEach(item => {
+          html += `<div>Station ${item.station_id} · ${item.risk_level} · ${formatPercent(item.peak_utilization || 0)}</div>`;
+        });
+        html += '</div></div>';
+      }
+      if (topDemand.length) {
+        html += '<div class="insight-item"><div class="badge yellow">Demand leaders</div><div style="margin-top:10px;line-height:1.65;">';
+        topDemand.slice(0, 5).forEach(item => {
+          html += `<div>Station ${item.station_id} · ${numberFormatter.format(item.current_demand)} kWh now</div>`;
+        });
+        html += '</div></div>';
+      }
+      html += '<div class="insight-item"><div class="badge gray">Operator note</div><div class="muted" style="margin-top:10px;line-height:1.7;">Use peak-hour pricing for the stations with the largest forecast spikes, then redirect sessions to lower-risk sites with spare capacity.</div></div>';
+
+      container.classList.remove('loading');
+      container.innerHTML = html;
+    }
+
+    function renderContext(data) {
+      const container = document.getElementById('context-panel');
+      const summary = data.summary || {};
+      const stats = data.stats || {};
+      const context = stats.context || {};
+      const model = stats.model || {};
+
+      container.classList.remove('loading');
+      container.innerHTML = `
+        <div class="insight-item"><div class="badge gray">Model</div><div style="margin-top:10px;line-height:1.7;">${model.type || 'XGBoost'} · ${model.status || 'unknown'}</div></div>
+        <div class="insight-item"><div class="badge gray">Weather</div><div style="margin-top:10px;line-height:1.7;">Avg temp ${numberFormatter.format(context.avg_temperature || 0)}°C · Rain ${formatPercent(context.rain_share || 0)}</div></div>
+        <div class="insight-item"><div class="badge gray">Events</div><div style="margin-top:10px;line-height:1.7;">Event rate ${formatPercent(context.event_rate || 0)} · ${summary.total_records || 0} records in history</div></div>
+      `;
+    }
+
+    function renderStations(data) {
+      const container = document.getElementById('stations-table');
+      const stations = data.stations || [];
+      if (!stations.length) {
+        container.classList.remove('loading');
+        container.innerHTML = '<div class="error">No station data available.</div>';
+        return;
+      }
+
+      let html = `
+        <table>
+          <thead>
+            <tr>
+              <th>Station</th>
+              <th>Location</th>
+              <th>Type</th>
+              <th>Capacity</th>
+              <th>Current Demand</th>
+              <th>Current Utilization</th>
+              <th>Next 24h Total</th>
+              <th>Peak Utilization</th>
+              <th>Risk</th>
+              <th>Pricing</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      stations.forEach(station => {
+        html += `
+          <tr>
+            <td><strong>Station ${station.station_id}</strong><div class="muted">${station.connector_count} connectors</div></td>
+            <td>${station.location_type}</td>
+            <td>${station.charger_type}</td>
+            <td>${numberFormatter.format(station.capacity)} kW</td>
+            <td>${numberFormatter.format(station.current_demand)} kWh</td>
+            <td>${formatPercent(station.current_utilization || 0)}</td>
+            <td>${numberFormatter.format(station.next_24h_total || 0)} kWh</td>
+            <td>${formatPercent(station.peak_utilization || 0)}</td>
+            <td><span class="table-tag ${badgeClass(station.risk_level)}">${station.risk_level}</span></td>
+            <td><span class="table-tag ${badgeClass(station.pricing_tier === 'Peak' || station.pricing_tier === 'Critical' ? 'red' : station.pricing_tier === 'Premium' ? 'orange' : station.pricing_tier === 'Standard' ? 'yellow' : 'green')}">${station.pricing_tier}</span></td>
+          </tr>
+        `;
+      });
+
+      html += '</tbody></table>';
+      container.classList.remove('loading');
+      container.innerHTML = html;
+    }
+
+    function renderPricing(data) {
+      const container = document.getElementById('pricing-table');
+      const pricing = data.pricing || [];
+
+      if (!pricing.length) {
+        container.classList.remove('loading');
+        container.innerHTML = '<div class="error">No pricing data available.</div>';
+        return;
+      }
+
+      let html = `
+        <table>
+          <thead>
+            <tr>
+              <th>Station</th>
+              <th>Utilization</th>
+              <th>Tier</th>
+              <th>Current Price</th>
+              <th>Recommended Price</th>
+              <th>Multiplier</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      pricing.forEach(item => {
+        html += `
+          <tr>
+            <td><strong>Station ${item.station_id}</strong></td>
+            <td>${formatPercent(item.utilization || 0)}</td>
+            <td><span class="table-tag ${badgeClass(item.tier_color === 'red' ? 'red' : item.tier_color === 'yellow' ? 'yellow' : item.tier_color === 'orange' ? 'orange' : 'green')}">${item.tier}</span></td>
+            <td>${currencyFormatter.format(item.current_price || 0)}/kWh</td>
+            <td><strong>${currencyFormatter.format(item.recommended_price || 0)}/kWh</strong></td>
+            <td>${numberFormatter.format(item.multiplier || 1)}x</td>
+          </tr>
+        `;
+      });
+
+      html += '</tbody></table>';
+      container.classList.remove('loading');
+      container.innerHTML = html;
+    }
+
+    async function refreshDashboard() {
+      try {
+        const data = await fetchDashboard(24);
+        renderSummary(data);
+        renderForecastChart(data);
+        renderUtilizationChart(data);
+        renderMixChart(data);
+        renderHeatmap(data);
+        renderAlerts(data);
+        renderInsights(data);
+        renderContext(data);
+        renderStations(data);
+        renderPricing(data);
+      } catch (error) {
+        console.error(error);
+        const message = `<div class="error">Unable to load dashboard data. ${error.message}</div>`;
+        ['forecast-chart', 'utilization-chart', 'mix-chart', 'heatmap-chart', 'alerts-panel', 'insights-panel', 'context-panel', 'stations-table', 'pricing-table'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.classList.remove('loading');
+            el.innerHTML = message;
+          }
+        });
+      }
+    }
+
+    window.addEventListener('load', refreshDashboard);
+    setInterval(refreshDashboard, 30000);
+  </script>
+</body>
+</html>
